@@ -60,6 +60,17 @@ interface PixChargeResult {
   qrCodeUrl: string;
 }
 
+const UTM_KEYS = [
+  'utm_source',
+  'utm_medium',
+  'utm_campaign',
+  'utm_content',
+  'utm_term',
+] as const;
+
+type UtmKey = (typeof UTM_KEYS)[number];
+type UtmPayload = Record<UtmKey, string>;
+
 // --- Components ---
 
 const CheckoutHeader = () => (
@@ -128,6 +139,26 @@ const Checkout = ({ offer, onBack }: { offer: Offer; onBack: () => void }) => {
   const totalPrice = (subtotal + shippingCost).toFixed(2).replace('.', ',');
   const subtotalPrice = subtotal.toFixed(2).replace('.', ',');
 
+  const getUtmPayload = (): UtmPayload => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const utm: Partial<UtmPayload> = {};
+
+    UTM_KEYS.forEach((key) => {
+      const valueFromUrl = searchParams.get(key)?.trim() ?? '';
+      const storageKey = `utmify:${key}`;
+      const valueFromStorage = sessionStorage.getItem(storageKey)?.trim() ?? '';
+      const finalValue = valueFromUrl || valueFromStorage || '';
+
+      if (valueFromUrl) {
+        sessionStorage.setItem(storageKey, valueFromUrl);
+      }
+
+      utm[key] = finalValue;
+    });
+
+    return utm as UtmPayload;
+  };
+
   const normalizePhone = (phoneValue: string) => {
     const digits = phoneValue.replace(/\D/g, '');
     return digits.startsWith('55') ? digits : `55${digits}`;
@@ -187,13 +218,7 @@ const Checkout = ({ offer, onBack }: { offer: Offer; onBack: () => void }) => {
     setPaymentError('');
 
     try {
-      const utm = {
-        utm_source: new URLSearchParams(window.location.search).get('utm_source') ?? '',
-        utm_medium: new URLSearchParams(window.location.search).get('utm_medium') ?? '',
-        utm_campaign: new URLSearchParams(window.location.search).get('utm_campaign') ?? '',
-        utm_content: new URLSearchParams(window.location.search).get('utm_content') ?? '',
-        utm_term: new URLSearchParams(window.location.search).get('utm_term') ?? '',
-      };
+      const utm = getUtmPayload();
 
       const response = await fetch('/api/pix/charge', {
         method: 'POST',
@@ -256,6 +281,10 @@ const Checkout = ({ offer, onBack }: { offer: Offer; onBack: () => void }) => {
   };
 
   // Fetch address from ViaCEP when CEP is valid
+  useEffect(() => {
+    getUtmPayload();
+  }, []);
+
   useEffect(() => {
     const cep = formData.cep.replace(/\D/g, '');
     if (cep.length === 8) {
