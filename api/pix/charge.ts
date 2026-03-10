@@ -51,7 +51,18 @@ export default async function handler(req: any, res: any) {
 
   try {
     const body = await parseBody(req);
-    const {name, email, phone, cpf, itemValue, quantity, utm} = body ?? {};
+    const {
+      name,
+      email,
+      phone,
+      cpf,
+      itemValue,
+      quantity,
+      shippingValue,
+      orderBumpsValue,
+      totalValue,
+      utm,
+    } = body ?? {};
 
     if (!name || !email || !phone || !cpf || !itemValue) {
       return sendJson(res, 422, {
@@ -59,6 +70,16 @@ export default async function handler(req: any, res: any) {
         message: 'Dados obrigatórios ausentes para gerar cobrança PIX.',
       });
     }
+
+    const parsedItemValue = Number(itemValue);
+    const parsedQuantity = Math.max(1, Number(quantity) || 1);
+    const parsedShippingValue = Math.max(0, Number(shippingValue) || 0);
+    const parsedOrderBumpsValue = Math.max(0, Number(orderBumpsValue) || 0);
+    const parsedTotalValue = Math.max(0, Number(totalValue) || 0);
+    const fallbackTotalValue = Math.round(
+      parsedItemValue * parsedQuantity + parsedShippingValue + parsedOrderBumpsValue
+    );
+    const ticketValue = parsedTotalValue > 0 ? Math.round(parsedTotalValue) : fallbackTotalValue;
 
     const response = await fetch(`${FRUITFY_API_URL}/api/pix/charge`, {
       method: 'POST',
@@ -77,8 +98,8 @@ export default async function handler(req: any, res: any) {
         items: [
           {
             id: productId,
-            value: itemValue,
-            quantity: quantity ?? 1,
+            value: ticketValue,
+            quantity: 1,
           },
         ],
         ...(utm ? {utm} : {}),

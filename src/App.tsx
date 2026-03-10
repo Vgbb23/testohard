@@ -60,6 +60,14 @@ interface PixChargeResult {
   qrCodeUrl: string;
 }
 
+interface OrderBump {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  image: string;
+}
+
 const UTM_KEYS = [
   'utm_source',
   'utm_medium',
@@ -70,6 +78,23 @@ const UTM_KEYS = [
 
 type UtmKey = (typeof UTM_KEYS)[number];
 type UtmPayload = Record<UtmKey, string>;
+
+const ORDER_BUMPS: OrderBump[] = [
+  {
+    id: 'bump-testo-extra',
+    name: 'Reforço Masculino',
+    description: 'Leve +1 frasco de Testo Hard com desconto especial e potencialize seus resultados.',
+    price: 19.9,
+    image: 'https://i.ibb.co/9k4TtCDz/image.png',
+  },
+  {
+    id: 'bump-maca-peruana',
+    name: 'Maca Peruana Premium',
+    description: 'Combine com seu Testo Hard e tenha mais energia, resistência e disposição no dia a dia.',
+    price: 29.9,
+    image: '/macasite.webp',
+  },
+];
 
 // --- Components ---
 
@@ -132,12 +157,23 @@ const Checkout = ({ offer, onBack }: { offer: Offer; onBack: () => void }) => {
   const [paymentError, setPaymentError] = useState('');
   const [pixCharge, setPixCharge] = useState<PixChargeResult | null>(null);
   const [isPixCopied, setIsPixCopied] = useState(false);
+  const [selectedOrderBumps, setSelectedOrderBumps] = useState<string[]>([]);
 
   const unitPrice = parseFloat(offer.price.replace(',', '.'));
   const subtotal = unitPrice * quantity;
   const shippingCost = shippingMethod === 'sedex' ? 18.39 : 0;
-  const totalPrice = (subtotal + shippingCost).toFixed(2).replace('.', ',');
+  const orderBumpsTotal = ORDER_BUMPS
+    .filter((bump) => selectedOrderBumps.includes(bump.id))
+    .reduce((sum, bump) => sum + bump.price, 0);
+  const totalPrice = (subtotal + shippingCost + orderBumpsTotal).toFixed(2).replace('.', ',');
   const subtotalPrice = subtotal.toFixed(2).replace('.', ',');
+  const orderBumpsPrice = orderBumpsTotal.toFixed(2).replace('.', ',');
+
+  const toggleOrderBump = (id: string) => {
+    setSelectedOrderBumps((prev) => (
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    ));
+  };
 
   const getUtmPayload = (): UtmPayload => {
     const searchParams = new URLSearchParams(window.location.search);
@@ -233,6 +269,10 @@ const Checkout = ({ offer, onBack }: { offer: Offer; onBack: () => void }) => {
           cpf: formData.cpf.replace(/\D/g, ''),
           itemValue: Math.round(unitPrice * 100),
           quantity,
+          shippingValue: Math.round(shippingCost * 100),
+          orderBumpsValue: Math.round(orderBumpsTotal * 100),
+          subtotalValue: Math.round(subtotal * 100),
+          totalValue: Math.round((subtotal + shippingCost + orderBumpsTotal) * 100),
           utm,
         }),
       });
@@ -521,7 +561,7 @@ const Checkout = ({ offer, onBack }: { offer: Offer; onBack: () => void }) => {
           {/* Order Summary - Top on Mobile, Sidebar on Desktop */}
           <div className="md:col-span-1 md:order-last">
             <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 md:sticky md:top-24">
-              <h3 className="text-sm font-black mb-6 uppercase italic border-b border-slate-100 pb-4">Resumo do Pedido</h3>
+              <h3 className="text-sm font-black mb-6 uppercase italic border-b border-slate-100 pb-4">Produto Selecionado</h3>
               <div className="flex items-center gap-4 mb-6">
                 <OptimizedImage src={offer.image} alt={offer.name} className="w-16 h-16 object-contain" referrerPolicy="no-referrer" />
                 <div>
@@ -553,27 +593,8 @@ const Checkout = ({ offer, onBack }: { offer: Offer; onBack: () => void }) => {
                   </button>
                 </div>
               </div>
-              <div className="space-y-3 border-t border-slate-100 pt-4">
-                <div className="flex justify-between text-xs">
-                  <span className="text-slate-500">Subtotal ({quantity}x)</span>
-                  <span className="font-bold">R$ {subtotalPrice}</span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span className="text-slate-500">Frete</span>
-                  <span className={`${shippingMethod === 'free' ? 'text-green-600' : 'text-slate-800'} font-bold uppercase`}>
-                    {shippingMethod === 'free' ? 'Grátis' : `R$ ${shippingCost.toFixed(2).replace('.', ',')}`}
-                  </span>
-                </div>
-                <div className="flex justify-between text-lg font-black pt-4 border-t border-slate-100">
-                  <span>TOTAL</span>
-                  <span className="text-rose-600 uppercase italic">R$ {totalPrice}</span>
-                </div>
-              </div>
               
               <div className="mt-8 space-y-3 hidden md:block">
-                <div className="flex items-center gap-2 text-[10px] text-slate-400 font-bold uppercase">
-                  <ShieldCheck size={14} className="text-green-500" /> Site Seguro
-                </div>
                 <div className="flex items-center gap-2 text-[10px] text-slate-400 font-bold uppercase">
                   <Truck size={14} className="text-green-500" /> Entrega Garantida
                 </div>
@@ -590,16 +611,26 @@ const Checkout = ({ offer, onBack }: { offer: Offer; onBack: () => void }) => {
                   <User size={20} className="text-rose-600" /> Dados Pessoais
                 </h3>
                 <div className="grid gap-4">
-                  <input 
-                    required
-                    name="name"
-                    placeholder="Nome Completo"
-                    className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-rose-600 transition-colors"
-                    value={formData.name}
-                    onChange={handleInputChange}
-                  />
+                  <div className="relative">
+                    <input
+                      id="checkout-name"
+                      required
+                      name="name"
+                      placeholder="Nome completo"
+                      className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-rose-600 transition-colors"
+                      value={formData.name}
+                      onChange={handleInputChange}
+                    />
+                    <span
+                      className={`pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-sm text-slate-400 transition-opacity ${
+                        formData.name.trim().length > 0 ? 'opacity-0' : 'opacity-100'
+                      }`}
+                    >
+                      Nome completo
+                    </span>
+                  </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <input 
+                    <input
                       required
                       type="email"
                       name="email"
@@ -608,7 +639,7 @@ const Checkout = ({ offer, onBack }: { offer: Offer; onBack: () => void }) => {
                       value={formData.email}
                       onChange={handleInputChange}
                     />
-                    <input 
+                    <input
                       required
                       name="phone"
                       placeholder="WhatsApp com DDD"
@@ -617,7 +648,7 @@ const Checkout = ({ offer, onBack }: { offer: Offer; onBack: () => void }) => {
                       onChange={handleInputChange}
                     />
                   </div>
-                  <input 
+                  <input
                     required
                     name="cpf"
                     placeholder="CPF"
@@ -800,6 +831,72 @@ const Checkout = ({ offer, onBack }: { offer: Offer; onBack: () => void }) => {
                     <span className="font-bold text-slate-700">DICA:</span> O pagamento via PIX é processado na hora e garante que seu pedido seja enviado ainda hoje.
                   </p>
                 </div>
+                <div className="mt-5 space-y-3">
+                  {ORDER_BUMPS.map((bump) => {
+                    const isSelected = selectedOrderBumps.includes(bump.id);
+                    return (
+                      <button
+                        key={bump.id}
+                        type="button"
+                        onClick={() => toggleOrderBump(bump.id)}
+                        className={`w-full text-left rounded-xl border p-4 transition-colors ${
+                          isSelected
+                            ? 'border-emerald-500 bg-emerald-50'
+                            : 'border-slate-200 bg-white hover:border-slate-300'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-start gap-3">
+                            <OptimizedImage
+                              src={bump.image}
+                              alt={bump.name}
+                              className="w-14 h-14 rounded-lg object-cover border border-slate-200"
+                              referrerPolicy="no-referrer"
+                            />
+                            <div>
+                              <p className="font-black text-slate-900">{bump.name}</p>
+                              <p className="text-xs text-slate-500 mt-1">{bump.description}</p>
+                            </div>
+                          </div>
+                          <span className="text-emerald-600 font-black whitespace-nowrap">
+                            + R$ {bump.price.toFixed(2).replace('.', ',')}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-100">
+                <h3 className="text-sm font-black mb-6 uppercase italic border-b border-slate-100 pb-4">Resumo do Pedido</h3>
+                <div className="flex items-center gap-4 mb-6">
+                  <OptimizedImage src={offer.image} alt={offer.name} className="w-16 h-16 object-contain" referrerPolicy="no-referrer" />
+                  <div>
+                    <h4 className="font-bold text-sm">{offer.name}</h4>
+                    <p className="text-xs text-slate-500">Fórmula Original Bionutri</p>
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-slate-500">Subtotal ({quantity}x)</span>
+                    <span className="font-bold">R$ {subtotalPrice}</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-slate-500">Frete</span>
+                    <span className={`${shippingMethod === 'free' ? 'text-green-600' : 'text-slate-800'} font-bold uppercase`}>
+                      {shippingMethod === 'free' ? 'Grátis' : `R$ ${shippingCost.toFixed(2).replace('.', ',')}`}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-slate-500">Adicionais</span>
+                    <span className="font-bold">R$ {orderBumpsPrice}</span>
+                  </div>
+                  <div className="flex justify-between text-lg font-black pt-4 border-t border-slate-100">
+                    <span>TOTAL</span>
+                    <span className="text-rose-600 uppercase italic">R$ {totalPrice}</span>
+                  </div>
+                </div>
               </div>
 
               <div className="space-y-4">
@@ -811,6 +908,31 @@ const Checkout = ({ offer, onBack }: { offer: Offer; onBack: () => void }) => {
                   {isCreatingPixCharge ? 'GERANDO PIX...' : 'FINALIZAR COMPRA'} <ArrowRight size={20} />
                 </button>
                 {paymentError && <p className="text-xs text-red-600 font-bold -mt-2">{paymentError}</p>}
+
+                <div className="bg-white rounded-2xl border border-slate-200 p-4">
+                  <div className="flex items-center justify-center gap-1 text-amber-400 mb-3">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <Star key={star} size={14} fill="currentColor" />
+                    ))}
+                  </div>
+                  <p className="text-center text-sm font-black text-slate-900 mb-3 normal-case">
+                    Mais de 1.300 clientes satisfeitos
+                  </p>
+                  <div className="space-y-2">
+                    <blockquote className="bg-slate-50 rounded-xl p-3 text-xs text-slate-600 leading-relaxed">
+                      "Depois de 2 semanas senti mais energia no treino e no dia a dia."
+                      <span className="font-bold text-slate-800"> - Carlos M., Belo Horizonte/MG</span>
+                    </blockquote>
+                    <blockquote className="bg-slate-50 rounded-xl p-3 text-xs text-slate-600 leading-relaxed">
+                      "Muito bom o custo-benefício. Disposição melhorou e o foco também."
+                      <span className="font-bold text-slate-800"> - Rafael S., Campinas/SP</span>
+                    </blockquote>
+                    <blockquote className="bg-slate-50 rounded-xl p-3 text-xs text-slate-600 leading-relaxed">
+                      "Produto chegou rápido e já percebi diferença na rotina de treinos."
+                      <span className="font-bold text-slate-800"> - Diego P., Curitiba/PR</span>
+                    </blockquote>
+                  </div>
+                </div>
                 
                 {/* Trust Footer below button */}
                 <div className="grid grid-cols-3 gap-4 py-6 border-t border-slate-100">
@@ -842,6 +964,7 @@ const Checkout = ({ offer, onBack }: { offer: Offer; onBack: () => void }) => {
                   </p>
                 </div>
               </div>
+
             </form>
           </div>
         </div>
@@ -1103,8 +1226,9 @@ const Pricing = ({ onSelectOffer }: { onSelectOffer: (offer: Offer) => void }) =
         
         <div className="flex flex-col gap-6 md:flex-row md:items-stretch">
           {offers.map((offer) => (
-            <div 
+            <div
               key={offer.id}
+              id={offer.popular ? 'oferta-mais-vendida' : undefined}
               className={`relative flex-1 p-6 rounded-2xl border-2 transition-all ${offer.popular ? 'bg-white border-rose-600 shadow-xl scale-105 z-10' : 'bg-white border-slate-200 opacity-90'}`}
             >
               {offer.popular && (
@@ -1118,7 +1242,9 @@ const Pricing = ({ onSelectOffer }: { onSelectOffer: (offer: Offer) => void }) =
                 <OptimizedImage src={offer.image} alt={offer.name} className="h-40 mx-auto mb-6 drop-shadow-lg" referrerPolicy="no-referrer" />
                 
                 <div className="mb-4">
-                  <p className="text-slate-400 line-through text-xs mb-1">De R$ 149,90</p>
+                  <p className="text-slate-400 line-through text-xs mb-1">
+                    De R$ {offer.id === 2 ? '99,90' : offer.id === 3 ? '149,90' : '49,90'}
+                  </p>
                   <div className="flex items-center justify-center gap-1">
                     <span className="text-lg font-bold">R$</span>
                     <span className="text-4xl font-black">{offer.price.split(',')[0]}</span>
@@ -1212,6 +1338,10 @@ const Footer = () => {
 
 export default function App() {
   const [selectedOffer, setSelectedOffer] = useState<Offer | null>(null);
+  const handleSelectOffer = (offer: Offer) => {
+    window.scrollTo({ top: 0, behavior: 'auto' });
+    setSelectedOffer(offer);
+  };
 
   if (selectedOffer) {
     return <Checkout offer={selectedOffer} onBack={() => setSelectedOffer(null)} />;
@@ -1277,7 +1407,7 @@ export default function App() {
         />
       </section>
 
-      <Pricing onSelectOffer={setSelectedOffer} />
+      <Pricing onSelectOffer={handleSelectOffer} />
       <FAQ />
       <Footer />
       
