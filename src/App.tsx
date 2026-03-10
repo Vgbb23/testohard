@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import macaPeruanaImage from '../macasite.webp';
 import { 
   CheckCircle2, 
   Star, 
@@ -92,7 +93,7 @@ const ORDER_BUMPS: OrderBump[] = [
     name: 'Maca Peruana Premium',
     description: 'Combine com seu Testo Hard e tenha mais energia, resistência e disposição no dia a dia.',
     price: 29.9,
-    image: '/macasite.webp',
+    image: macaPeruanaImage,
   },
 ];
 
