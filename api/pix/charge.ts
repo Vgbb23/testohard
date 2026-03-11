@@ -1,4 +1,8 @@
+import {saveOrderStatus} from './status-store';
+
 const FRUITFY_API_URL = process.env.FRUITFY_API_URL ?? 'https://api.fruitfy.io';
+const APP_URL = process.env.APP_URL?.trim() ?? '';
+const FRUITFY_WEBHOOK_URL = process.env.FRUITFY_WEBHOOK_URL?.trim() ?? '';
 
 const sendJson = (
   res: {
@@ -24,6 +28,25 @@ const parseBody = async (req: any) => {
   }
   const raw = Buffer.concat(chunks).toString('utf-8');
   return raw ? JSON.parse(raw) : {};
+};
+
+const normalizeWebhookUrl = (value: string) => value.replace(/\/+$/, '');
+
+const resolveWebhookUrl = (req: any) => {
+  if (FRUITFY_WEBHOOK_URL) {
+    return normalizeWebhookUrl(FRUITFY_WEBHOOK_URL);
+  }
+
+  if (APP_URL) {
+    return `${normalizeWebhookUrl(APP_URL)}/api/pix/webhook`;
+  }
+
+  const host = req.headers?.host;
+  if (!host) return '';
+
+  const forwardedProto = req.headers?.['x-forwarded-proto'];
+  const proto = typeof forwardedProto === 'string' && forwardedProto.trim() ? forwardedProto : 'https';
+  return `${proto}://${host}/api/pix/webhook`;
 };
 
 export default async function handler(req: any, res: any) {
@@ -81,6 +104,7 @@ export default async function handler(req: any, res: any) {
     );
     const ticketValue = parsedTotalValue > 0 ? Math.round(parsedTotalValue) : fallbackTotalValue;
 
+    const webhookUrl = resolveWebhookUrl(req);
     const response = await fetch(`${FRUITFY_API_URL}/api/pix/charge`, {
       method: 'POST',
       headers: {
@@ -102,11 +126,17 @@ export default async function handler(req: any, res: any) {
             quantity: 1,
           },
         ],
+        ...(webhookUrl ? {webhook_url: webhookUrl} : {}),
         ...(utm ? {utm} : {}),
       }),
     });
 
     const responseData = await response.json().catch(() => null);
+    const createdOrderId = responseData?.data?.order_id ?? responseData?.data?.orderId ?? '';
+    const createdStatus = responseData?.data?.status ?? 'waiting_payment';
+    if (response.ok && responseData?.success && createdOrderId) {
+      saveOrderStatus(String(createdOrderId), String(createdStatus));
+    }
     return sendJson(
       res,
       response.status,

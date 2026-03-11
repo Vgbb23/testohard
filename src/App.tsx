@@ -59,6 +59,7 @@ interface PixChargeResult {
   orderId: string;
   pixCode: string;
   qrCodeUrl: string;
+  status: string;
 }
 
 interface OrderBump {
@@ -79,6 +80,15 @@ const UTM_KEYS = [
 
 type UtmKey = (typeof UTM_KEYS)[number];
 type UtmPayload = Record<UtmKey, string>;
+
+const FINAL_PIX_STATUSES = new Set(['paid', 'cancelled', 'refunded']);
+
+const PIX_STATUS_LABELS: Record<string, string> = {
+  waiting_payment: 'Aguardando pagamento...',
+  paid: 'Pagamento confirmado!',
+  cancelled: 'Pagamento cancelado.',
+  refunded: 'Pagamento reembolsado.',
+};
 
 const ORDER_BUMPS: OrderBump[] = [
   {
@@ -157,6 +167,7 @@ const Checkout = ({ offer, onBack }: { offer: Offer; onBack: () => void }) => {
   const [isCreatingPixCharge, setIsCreatingPixCharge] = useState(false);
   const [paymentError, setPaymentError] = useState('');
   const [pixCharge, setPixCharge] = useState<PixChargeResult | null>(null);
+  const [pixStatus, setPixStatus] = useState<string>('waiting_payment');
   const [isPixCopied, setIsPixCopied] = useState(false);
   const [selectedOrderBumps, setSelectedOrderBumps] = useState<string[]>([]);
 
@@ -247,6 +258,7 @@ const Checkout = ({ offer, onBack }: { offer: Offer; onBack: () => void }) => {
       orderId: data.order_id ?? data.orderId ?? '',
       pixCode,
       qrCodeUrl,
+      status: data.status ?? 'waiting_payment',
     };
   };
 
@@ -289,6 +301,7 @@ const Checkout = ({ offer, onBack }: { offer: Offer; onBack: () => void }) => {
       }
 
       setPixCharge(pixData);
+      setPixStatus(pixData.status || 'waiting_payment');
       return true;
     } catch (error) {
       setPaymentError(error instanceof Error ? error.message : 'Erro ao criar pagamento PIX.');
@@ -477,6 +490,38 @@ const Checkout = ({ offer, onBack }: { offer: Offer; onBack: () => void }) => {
     }
   };
 
+  useEffect(() => {
+    if (step !== 'payment' || !pixCharge?.orderId || FINAL_PIX_STATUSES.has(pixStatus)) return;
+
+    let isDisposed = false;
+
+    const refreshOrderStatus = async () => {
+      try {
+        const response = await fetch(`/api/pix/order-status?orderId=${encodeURIComponent(pixCharge.orderId)}`, {
+          headers: {Accept: 'application/json'},
+        });
+
+        if (!response.ok) return;
+        const result = await response.json();
+        const nextStatus = result?.data?.status;
+
+        if (!isDisposed && typeof nextStatus === 'string' && nextStatus.trim()) {
+          setPixStatus(nextStatus.trim());
+        }
+      } catch {
+        // Silencia erro de rede para não interromper a experiência do checkout.
+      }
+    };
+
+    refreshOrderStatus();
+    const intervalId = window.setInterval(refreshOrderStatus, 5000);
+
+    return () => {
+      isDisposed = true;
+      window.clearInterval(intervalId);
+    };
+  }, [step, pixCharge?.orderId, pixStatus]);
+
   if (step === 'payment') {
     return (
       <div className="min-h-screen bg-slate-50 pb-12">
@@ -507,11 +552,27 @@ const Checkout = ({ offer, onBack }: { offer: Offer; onBack: () => void }) => {
                 referrerPolicy="no-referrer"
                 priority
               />
-              <p className="text-[10px] text-slate-400 uppercase font-bold tracking-widest">Aguardando pagamento...</p>
+              <p
+                className={`text-[10px] uppercase font-bold tracking-widest ${
+                  pixStatus === 'paid'
+                    ? 'text-emerald-600'
+                    : pixStatus === 'cancelled' || pixStatus === 'refunded'
+                      ? 'text-red-600'
+                      : 'text-slate-400'
+                }`}
+              >
+                {PIX_STATUS_LABELS[pixStatus] ?? `Status: ${pixStatus}`}
+              </p>
               {pixCharge?.orderId && (
                 <p className="text-[10px] text-slate-400 mt-2">Pedido: {pixCharge.orderId}</p>
               )}
             </div>
+
+            {pixStatus === 'paid' && (
+              <div className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-700 text-sm font-bold">
+                Pagamento confirmado. Seu pedido foi liberado com sucesso.
+              </div>
+            )}
 
             <div className="space-y-4">
               <button 

@@ -19,3 +19,16 @@ View your app in AI Studio: https://ai.studio/apps/6a39942c-6f8b-4600-8671-342d1
 3. Run the app:
    `npm run dev`
 # testohard
+
+## PIX Fruitfy
+
+Configure no `.env.local`:
+
+- `FRUITFY_TOKEN`
+- `FRUITFY_STORE_ID`
+- `FRUITFY_PRODUCT_ID`
+- `APP_URL` (URL pública do app)
+- `FRUITFY_WEBHOOK_URL` (opcional, sobrescreve a URL montada via `APP_URL`)
+
+A criação da cobrança envia `webhook_url` automaticamente para `POST /api/pix/charge`, e o endpoint de recebimento está em `POST /api/pix/webhook`.
+O status do pedido pode ser consultado em `GET /api/pix/order-status?orderId=<id>`.
