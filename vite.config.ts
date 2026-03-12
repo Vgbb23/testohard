@@ -123,6 +123,65 @@ const createFruitfyPixProxy = (fruitfyConfig: FruitfyConfig) => ({
         });
       }
     });
+
+    server.middlewares.use('/api/order', async (req, res) => {
+      if (req.method === 'OPTIONS') {
+        res.statusCode = 204;
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept');
+        res.end();
+        return;
+      }
+
+      if (req.method !== 'GET') {
+        sendJson(res, 405, {success: false, message: 'Method not allowed'});
+        return;
+      }
+
+      const token = fruitfyConfig.token;
+      const storeId = fruitfyConfig.storeId;
+
+      if (!token || !storeId) {
+        sendJson(res, 500, {
+          success: false,
+          message: 'Configuração Fruitfy ausente. Defina FRUITFY_TOKEN e FRUITFY_STORE_ID no .env.local.',
+        });
+        return;
+      }
+
+      try {
+        const requestUrl = new URL(req.url ?? '', 'http://localhost');
+        const pathParts = requestUrl.pathname.split('/').filter(Boolean);
+        const rawOrderId = pathParts[pathParts.length - 1] ?? '';
+        const orderId = decodeURIComponent(rawOrderId);
+
+        if (!orderId || orderId === 'order') {
+          sendJson(res, 400, {success: false, message: 'ID do pedido inválido.'});
+          return;
+        }
+
+        const response = await fetch(`${fruitfyConfig.apiUrl}/api/order/${encodeURIComponent(orderId)}`, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Store-Id': storeId,
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            'Accept-Language': 'pt_BR',
+          },
+        });
+
+        const responseData = await response.json().catch(() => null);
+        sendJson(res, response.status, responseData ?? {success: false, message: 'Resposta inválida da Fruitfy.'});
+      } catch (error) {
+        sendJson(res, 500, {
+          success: false,
+          message: 'Falha ao consultar status do pedido na Fruitfy.',
+          error: error instanceof Error ? error.message : 'Erro desconhecido',
+        });
+      }
+    });
   },
 });
 

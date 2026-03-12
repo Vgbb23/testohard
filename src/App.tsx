@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import macaPeruanaImage from '../macasite.webp';
 import { 
@@ -158,7 +158,9 @@ const Checkout = ({ offer, onBack }: { offer: Offer; onBack: () => void }) => {
   const [paymentError, setPaymentError] = useState('');
   const [pixCharge, setPixCharge] = useState<PixChargeResult | null>(null);
   const [isPixCopied, setIsPixCopied] = useState(false);
+  const [isPaymentApproved, setIsPaymentApproved] = useState(false);
   const [selectedOrderBumps, setSelectedOrderBumps] = useState<string[]>([]);
+  const hasRedirectedAfterPayment = useRef(false);
 
   const unitPrice = parseFloat(offer.price.replace(',', '.'));
   const subtotal = unitPrice * quantity;
@@ -253,6 +255,8 @@ const Checkout = ({ offer, onBack }: { offer: Offer; onBack: () => void }) => {
   const createPixCharge = async () => {
     setIsCreatingPixCharge(true);
     setPaymentError('');
+    setIsPaymentApproved(false);
+    hasRedirectedAfterPayment.current = false;
 
     try {
       const utm = getUtmPayload();
@@ -477,6 +481,46 @@ const Checkout = ({ offer, onBack }: { offer: Offer; onBack: () => void }) => {
     }
   };
 
+  useEffect(() => {
+    if (step !== 'payment' || !pixCharge?.orderId || hasRedirectedAfterPayment.current) {
+      return undefined;
+    }
+
+    let isCancelled = false;
+
+    const checkOrderStatus = async () => {
+      if (isCancelled || hasRedirectedAfterPayment.current) return;
+
+      try {
+        const response = await fetch(`/api/order/${encodeURIComponent(pixCharge.orderId)}`, {
+          headers: { Accept: 'application/json' },
+        });
+
+        if (!response.ok) return;
+
+        const orderResponse = await response.json();
+        const paidAt = orderResponse?.data?.paid_at ?? orderResponse?.paid_at ?? null;
+        if (paidAt) {
+          hasRedirectedAfterPayment.current = true;
+          setIsPaymentApproved(true);
+          window.setTimeout(() => {
+            window.location.href = 'https://upselltesto.vercel.app/';
+          }, 1200);
+        }
+      } catch {
+        // Ignora falhas momentâneas no polling para tentar novamente no próximo ciclo.
+      }
+    };
+
+    checkOrderStatus();
+    const intervalId = window.setInterval(checkOrderStatus, 300);
+
+    return () => {
+      isCancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [step, pixCharge?.orderId]);
+
   if (step === 'payment') {
     return (
       <div className="min-h-screen bg-slate-50 pb-12">
@@ -507,11 +551,21 @@ const Checkout = ({ offer, onBack }: { offer: Offer; onBack: () => void }) => {
                 referrerPolicy="no-referrer"
                 priority
               />
-              <p className="text-[10px] text-slate-400 uppercase font-bold tracking-widest">Aguardando pagamento...</p>
+              <p className="text-[10px] text-slate-400 uppercase font-bold tracking-widest">
+                {isPaymentApproved ? 'Pagamento aprovado!' : 'Aguardando pagamento...'}
+              </p>
               {pixCharge?.orderId && (
                 <p className="text-[10px] text-slate-400 mt-2">Pedido: {pixCharge.orderId}</p>
               )}
             </div>
+
+            {isPaymentApproved && (
+              <div className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+                <p className="text-xs font-bold text-emerald-700 uppercase tracking-wide">
+                  Pagamento aprovado, redirecionando...
+                </p>
+              </div>
+            )}
 
             <div className="space-y-4">
               <button 
