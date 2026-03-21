@@ -6,3 +6,6 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Repositório separado (clone local do upsell); não versionar dentro do testohard
+upselltesto/
