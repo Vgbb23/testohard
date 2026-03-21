@@ -10,8 +10,7 @@ View your app in AI Studio: https://ai.studio/apps/6a39942c-6f8b-4600-8671-342d1
 
 ## Run Locally
 
-**Prerequisites:**  Node.js
-
+**Prerequisites:** Node.js **20 ou superior** (Tailwind v4 e dependências nativas exigem isso; no macOS, `node -v` deve ser ≥ 20 — por exemplo Homebrew em `/opt/homebrew/bin/node`.)
 
 1. Install dependencies:
    `npm install`
