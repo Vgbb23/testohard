@@ -133,6 +133,15 @@ const OptimizedImage = ({ priority = false, loading, decoding, ...props }: Optim
   />
 );
 
+/** Compacta dados do checkout para o upsell (base64url). O upsell decodifica e gera PIX sem depender da API de pedido. */
+const encodeUpsellCustomerPrefill = (payload: {n: string; e: string; p: string; c: string}) => {
+  const raw = JSON.stringify(payload);
+  return btoa(unescape(encodeURIComponent(raw)))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+};
+
 const Checkout = ({ offer, onBack }: { offer: Offer; onBack: () => void }) => {
   const [step, setStep] = useState<'form' | 'payment'>('form');
   const [shippingMethod, setShippingMethod] = useState<'free' | 'sedex'>('free');
@@ -504,7 +513,24 @@ const Checkout = ({ offer, onBack }: { offer: Offer; onBack: () => void }) => {
           hasRedirectedAfterPayment.current = true;
           setIsPaymentApproved(true);
           window.setTimeout(() => {
-            window.location.href = 'https://upselltesto.vercel.app/';
+            const nextUrl = new URL('https://upselltesto.vercel.app/');
+            const params = new URLSearchParams(window.location.search);
+            params.set('orderId', pixCharge.orderId);
+            try {
+              params.set(
+                'prefill',
+                encodeUpsellCustomerPrefill({
+                  n: formData.name.trim(),
+                  e: formData.email.trim(),
+                  p: normalizePhone(formData.phone),
+                  c: formData.cpf.replace(/\D/g, ''),
+                })
+              );
+            } catch {
+              // segue só com orderId
+            }
+            nextUrl.search = params.toString();
+            window.location.href = nextUrl.toString();
           }, 1200);
         }
       } catch {
