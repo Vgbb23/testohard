@@ -1271,8 +1271,8 @@ const Pricing = ({ onSelectOffer }: { onSelectOffer: (offer: Offer) => void }) =
     {
       id: 1,
       name: "1 POTE",
-      price: "32,90",
-      installments: "12x de 3,30",
+      price: "39,90",
+      installments: "12x de 3,33",
       image: "https://i.ibb.co/9k4TtCDz/image.png",
       popular: false,
       btnClass: "btn-secondary"
@@ -1280,8 +1280,8 @@ const Pricing = ({ onSelectOffer }: { onSelectOffer: (offer: Offer) => void }) =
     {
       id: 2,
       name: "2 POTES",
-      price: "56,90",
-      installments: "12x de 5,71",
+      price: "59,90",
+      installments: "12x de 4,99",
       image: "https://i.ibb.co/mVsbqpgS/image.png",
       popular: true,
       btnClass: "btn-primary"
@@ -1289,8 +1289,8 @@ const Pricing = ({ onSelectOffer }: { onSelectOffer: (offer: Offer) => void }) =
     {
       id: 3,
       name: "3 POTES",
-      price: "69,90",
-      installments: "12x de 7,02",
+      price: "79,90",
+      installments: "12x de 6,66",
       image: "https://i.ibb.co/dJQ22Mtj/image.png",
       popular: false,
       btnClass: "btn-secondary"
